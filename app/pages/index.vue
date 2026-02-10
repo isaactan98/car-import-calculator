@@ -6,7 +6,7 @@
         <UFormField label="FOB Vehicle Price">
           <div class="flex gap-2 items-center">
             <UInput v-model.number="form.fob" />
-            <USelect v-model="form.fobCurrency" :items="['USD', 'JPY', 'MYR']" />
+            <USelect v-model="form.fobCurrency" :items="['MYR', 'USD', 'JPY']" />
           </div>
 
           <span v-if="form.fobCurrency === 'USD' || form.fobCurrency === 'JPY'" class="text-sm text-gray-500">
@@ -105,7 +105,7 @@ const { calculate } = useCalculator()
 
 const form = reactive<ImportCostInput>({
   fob: 52000,
-  fobCurrency: 'USD',
+  fobCurrency: 'MYR',
 
   inlandJP: 800,
   shipping: 2200,
@@ -148,8 +148,8 @@ const fields: {
 ========================= */
 
 const exchangeRates: Record<FXCurrency, number> = {
-  USD: 4.7,
-  JPY: 0.032,
+  USD: 3.93,
+  JPY: 0.025,
 }
 
 /* =========================
