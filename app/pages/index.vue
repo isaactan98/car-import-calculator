@@ -1,8 +1,6 @@
 <template>
   <div>
     <UContainer>
-      <h1 class="mb-4">GR86 Direct Import Cost Calculator (With AP)</h1>
-
       <UCard>
         <!-- FOB (SPECIAL CASE: Dynamic Currency) -->
         <UFormField label="FOB Vehicle Price">
@@ -33,14 +31,32 @@
       <!-- Results -->
       <h2 class="mt-6">Cost Breakdown (MYR)</h2>
       <ul class="mt-2 space-y-1">
-        <li><strong>Vehicle + Shipping (CIF):</strong> RM {{ result.cif }}</li>
-        <li><strong>Import Duty:</strong> RM {{ result.importDuty }}</li>
-        <li><strong>Excise Duty:</strong> RM {{ result.exciseDuty }}</li>
-        <li><strong>SST:</strong> RM {{ result.sst }}</li>
-        <li class="font-semibold">
-          <strong>Total Landed Cost:</strong> RM {{ result.finalPrice }}
+        <li class="grid grid-cols-2">
+          <span class="font-medium">Vehicle + Shipping (CIF)</span>
+          <span class="text-right">RM {{ formatMYR(result.cif) }}</span>
+        </li>
+
+        <li class="grid grid-cols-2">
+          <span class="font-medium">Import Duty</span>
+          <span class="text-right">RM {{ formatMYR(result.importDuty) }}</span>
+        </li>
+
+        <li class="grid grid-cols-2">
+          <span class="font-medium">Excise Duty</span>
+          <span class="text-right">RM {{ formatMYR(result.exciseDuty) }}</span>
+        </li>
+
+        <li class="grid grid-cols-2">
+          <span class="font-medium">SST</span>
+          <span class="text-right">RM {{ formatMYR(result.sst) }}</span>
+        </li>
+
+        <li class="grid grid-cols-2 font-semibold border-t pt-2">
+          <span>Total Landed Cost</span>
+          <span class="text-right">RM {{ formatMYR(result.finalPrice) }}</span>
         </li>
       </ul>
+
 
       <!-- Verdict -->
       <h3 class="mt-4">Verdict</h3>
@@ -164,4 +180,11 @@ const formMYR = computed<ImportCostInput>(() => {
 ========================= */
 
 const result = computed(() => calculate(formMYR.value))
+
+const formatMYR = (value: number) => {
+  return value.toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+};
 </script>
