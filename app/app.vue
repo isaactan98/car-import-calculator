@@ -11,7 +11,7 @@ useHead({
   }
 })
 
-const title = 'Nuxt Starter Template'
+const title = 'Car Import Calculator'
 const description = 'A production-ready starter template powered by Nuxt UI. Build beautiful, accessible, and performant applications in minutes, not hours.'
 
 useSeoMeta({
@@ -30,7 +30,7 @@ useSeoMeta({
     <UHeader>
       <template #left>
         <NuxtLink to="/">
-          <AppLogo class="w-auto h-6 shrink-0" />
+          <UHeader title="CIC" />
         </NuxtLink>
       </template>
     </UHeader>

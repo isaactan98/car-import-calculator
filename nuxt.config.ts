@@ -9,6 +9,16 @@ export default defineNuxtConfig({
     enabled: true
   },
 
+  app: {
+    head: {
+      
+      link: [
+        { key: 'favicon', rel: 'icon', type: 'image/png', href: '/icons/icon1.png' },
+        { key: 'shortcut', rel: 'shortcut icon', type: 'image/png', href: '/icons/icon1.png' }
+      ]
+    }
+  },
+
   css: ['~/assets/css/main.css'],
 
   routeRules: {
