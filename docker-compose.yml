@@ -1,0 +1,9 @@
+version: "3.9"
+
+services:
+  fob-app:
+    build: .
+    container_name: fob-app
+    ports:
+      - "8080:80"
+    restart: unless-stopped

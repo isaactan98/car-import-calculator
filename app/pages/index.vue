@@ -1,76 +1,167 @@
 <template>
   <div>
-    <UPageHero
-      title="Nuxt Starter Template"
-      description="A production-ready starter template powered by Nuxt UI. Build beautiful, accessible, and performant applications in minutes, not hours."
-      :links="[{
-        label: 'Get started',
-        to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-        target: '_blank',
-        trailingIcon: 'i-lucide-arrow-right',
-        size: 'xl'
-      }, {
-        label: 'Use this template',
-        to: 'https://github.com/nuxt-ui-templates/starter',
-        target: '_blank',
-        icon: 'i-simple-icons-github',
-        size: 'xl',
-        color: 'neutral',
-        variant: 'subtle'
-      }]"
-    />
+    <UContainer>
+      <h1 class="mb-4">GR86 Direct Import Cost Calculator (With AP)</h1>
 
-    <UPageSection
-      id="features"
-      title="Everything you need to build modern Nuxt apps"
-      description="Start with a solid foundation. This template includes all the essentials for building production-ready applications with Nuxt UI's powerful component system."
-      :features="[{
-        icon: 'i-lucide-rocket',
-        title: 'Production-ready from day one',
-        description: 'Pre-configured with TypeScript, ESLint, Tailwind CSS, and all the best practices. Focus on building features, not setting up tooling.'
-      }, {
-        icon: 'i-lucide-palette',
-        title: 'Beautiful by default',
-        description: 'Leveraging Nuxt UI\'s design system with automatic dark mode, consistent spacing, and polished components that look great out of the box.'
-      }, {
-        icon: 'i-lucide-zap',
-        title: 'Lightning fast',
-        description: 'Optimized for performance with SSR/SSG support, automatic code splitting, and edge-ready deployment. Your users will love the speed.'
-      }, {
-        icon: 'i-lucide-blocks',
-        title: '100+ components included',
-        description: 'Access Nuxt UI\'s comprehensive component library. From forms to navigation, everything is accessible, responsive, and customizable.'
-      }, {
-        icon: 'i-lucide-code-2',
-        title: 'Developer experience first',
-        description: 'Auto-imports, hot module replacement, and TypeScript support. Write less boilerplate and ship more features.'
-      }, {
-        icon: 'i-lucide-shield-check',
-        title: 'Built for scale',
-        description: 'Enterprise-ready architecture with proper error handling, SEO optimization, and security best practices built-in.'
-      }]"
-    />
+      <UCard>
+        <!-- FOB (SPECIAL CASE: Dynamic Currency) -->
+        <UFormField label="FOB Vehicle Price">
+          <div class="flex gap-2 items-center">
+            <UInput v-model.number="form.fob" />
+            <USelect v-model="form.fobCurrency" :items="['USD', 'JPY', 'MYR']" />
+          </div>
 
-    <UPageSection>
-      <UPageCTA
-        title="Ready to build your next Nuxt app?"
-        description="Join thousands of developers building with Nuxt and Nuxt UI. Get this template and start shipping today."
-        variant="subtle"
-        :links="[{
-          label: 'Start building',
-          to: 'https://ui.nuxt.com/docs/getting-started/installation/nuxt',
-          target: '_blank',
-          trailingIcon: 'i-lucide-arrow-right',
-          color: 'neutral'
-        }, {
-          label: 'View on GitHub',
-          to: 'https://github.com/nuxt-ui-templates/starter',
-          target: '_blank',
-          icon: 'i-simple-icons-github',
-          color: 'neutral',
-          variant: 'outline'
-        }]"
-      />
-    </UPageSection>
+          <span v-if="form.fobCurrency === 'USD' || form.fobCurrency === 'JPY'" class="text-sm text-gray-500">
+            1 {{ form.fobCurrency }} ≈ RM
+            {{ exchangeRates[form.fobCurrency] }}
+          </span>
+        </UFormField>
+
+        <!-- Other Fields -->
+        <div v-for="field in fields" :key="field.key" class="mt-3">
+          <UFormField :label="field.label">
+            <UInput v-model.number="form[field.key]" :placeholder="field.currency" />
+          </UFormField>
+
+          <span v-if="field.currency === 'USD' || field.currency === 'JPY'" class="text-sm text-gray-500">
+            1 {{ field.currency }} ≈ RM
+            {{ exchangeRates[field.currency] }}
+          </span>
+        </div>
+      </UCard>
+
+      <!-- Results -->
+      <h2 class="mt-6">Cost Breakdown (MYR)</h2>
+      <ul class="mt-2 space-y-1">
+        <li><strong>Vehicle + Shipping (CIF):</strong> RM {{ result.cif }}</li>
+        <li><strong>Import Duty:</strong> RM {{ result.importDuty }}</li>
+        <li><strong>Excise Duty:</strong> RM {{ result.exciseDuty }}</li>
+        <li><strong>SST:</strong> RM {{ result.sst }}</li>
+        <li class="font-semibold">
+          <strong>Total Landed Cost:</strong> RM {{ result.finalPrice }}
+        </li>
+      </ul>
+
+      <!-- Verdict -->
+      <h3 class="mt-4">Verdict</h3>
+      <UAlert v-if="result.finalPrice <= 160000" description="✅ Very good deal — buy without hesitation" />
+      <UAlert v-else-if="result.finalPrice <= 170000" color="warning" description="🟡 Acceptable — negotiate harder" />
+      <UAlert v-else color="error" description="❌ Overpriced — walk away" />
+    </UContainer>
   </div>
 </template>
+
+<script setup lang="ts">
+/* =========================
+   Types
+========================= */
+
+type FXCurrency = 'USD' | 'JPY'
+type FieldCurrency = FXCurrency | 'MYR' | '%'
+
+interface ImportCostInput {
+  fob: number
+  fobCurrency: FXCurrency | 'MYR'
+
+  inlandJP: number
+  shipping: number
+  insurance: number
+
+  importRate: number
+  exciseRate: number
+
+  apFee: number
+  customsFee: number
+  portFee: number
+  inspectionFee: number
+  dealerFee: number
+}
+
+/* =========================
+   Calculator
+========================= */
+
+const { calculate } = useCalculator()
+
+/* =========================
+   Form State (RAW INPUT)
+========================= */
+
+const form = reactive<ImportCostInput>({
+  fob: 52000,
+  fobCurrency: 'USD',
+
+  inlandJP: 800,
+  shipping: 2200,
+  insurance: 500,
+
+  importRate: 35,
+  exciseRate: 85,
+
+  apFee: 10000,
+  customsFee: 2500,
+  portFee: 1500,
+  inspectionFee: 700,
+  dealerFee: 5000,
+})
+
+/* =========================
+   UI Field Metadata
+   (FOB EXCLUDED ON PURPOSE)
+========================= */
+
+const fields: {
+  key: Exclude<keyof ImportCostInput, 'fob' | 'fobCurrency'>
+  label: string
+  currency: FieldCurrency
+}[] = [
+    { key: 'inlandJP', label: 'Japan Inland Transport', currency: 'JPY' },
+    { key: 'shipping', label: 'Shipping Cost (RORO)', currency: 'USD' },
+    { key: 'insurance', label: 'Marine Insurance', currency: 'USD' },
+    { key: 'importRate', label: 'Import Duty Rate', currency: '%' },
+    { key: 'exciseRate', label: 'Excise Duty Rate', currency: '%' },
+    { key: 'apFee', label: 'AP Fee', currency: 'MYR' },
+    { key: 'customsFee', label: 'Customs Clearance Fee', currency: 'MYR' },
+    { key: 'portFee', label: 'Port Handling Fee', currency: 'MYR' },
+    { key: 'inspectionFee', label: 'PUSPAKOM Inspection Fee', currency: 'MYR' },
+    { key: 'dealerFee', label: 'Dealer / Runner Fee', currency: 'MYR' },
+  ]
+
+/* =========================
+   Exchange Rates
+========================= */
+
+const exchangeRates: Record<FXCurrency, number> = {
+  USD: 4.7,
+  JPY: 0.032,
+}
+
+/* =========================
+   Normalize → MYR
+========================= */
+
+const formMYR = computed<ImportCostInput>(() => {
+  const converted = { ...form }
+
+  // FOB (dynamic currency)
+  if (form.fobCurrency === 'USD' || form.fobCurrency === 'JPY') {
+    converted.fob = form.fob * exchangeRates[form.fobCurrency]
+  }
+
+  // Other FX fields
+  fields.forEach(field => {
+    if (field.currency === 'USD' || field.currency === 'JPY') {
+      converted[field.key] =
+        form[field.key] * exchangeRates[field.currency]
+    }
+  })
+
+  return converted
+})
+
+/* =========================
+   Final Result (MYR only)
+========================= */
+
+const result = computed(() => calculate(formMYR.value))
+</script>
