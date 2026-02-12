@@ -18,12 +18,18 @@
         <!-- Other Fields -->
         <div v-for="field in fields" :key="field.key" class="mt-3">
           <UFormField :label="field.label">
-            <UInput v-model.number="form[field.key]" :placeholder="field.currency" />
+            <template v-if="field.key === 'exciseBase'">
+              <USelect v-model="form.exciseBase" :items="field.items || ['DEPRECIATED', 'CIF']" />
+            </template>
+
+            <template v-else>
+              <UInput v-model.number="form[field.key]" :placeholder="field.currency" />
+            </template>
           </UFormField>
 
           <span v-if="field.currency === 'USD' || field.currency === 'JPY'" class="text-sm text-gray-500">
             1 {{ field.currency }} ≈ RM
-            {{ exchangeRates[field.currency] }}
+            {{ field.currency === 'USD' ? form.customsFxUSD : form.customsFxJPY }}
           </span>
         </div>
       </UCard>
@@ -34,6 +40,11 @@
         <li class="grid grid-cols-2">
           <span class="font-medium">Vehicle + Shipping (CIF)</span>
           <span class="text-right">RM {{ formatMYR(result.cif) }}</span>
+        </li>
+
+        <li class="grid grid-cols-2">
+          <span class="font-medium">Fees (AP + JPJ + etc)</span>
+          <span class="text-right">RM {{ formatMYR(result.totalLocalFees) }}</span>
         </li>
 
         <li class="grid grid-cols-2">
@@ -73,23 +84,47 @@
 ========================= */
 
 type FXCurrency = 'USD' | 'JPY'
-type FieldCurrency = FXCurrency | 'MYR' | '%'
+type FieldCurrency = FXCurrency | 'MYR' | '%' | 'TEXT'
+type ExciseBase = 'CIF' | 'DEPRECIATED'
 
 interface ImportCostInput {
+  // Vehicle meta (for your own tracking / future presets)
+  engineCC: number
+  vehicleYear: number
+  vehicleMonth: number // 1-12
+
+  // FX used by Customs (IMPORTANT)
+  customsFxUSD: number // 1 USD -> MYR
+  customsFxJPY: number // 1 JPY -> MYR
+
+  // FOB
   fob: number
   fobCurrency: FXCurrency | 'MYR'
 
+  // Japan/Logistics
   inlandJP: number
   shipping: number
   insurance: number
 
-  importRate: number
-  exciseRate: number
+  // Tax rates
+  importRate: number     // %
+  exciseRate: number     // %
+  sstRate: number        // % (normally 10)
 
+  // Recon key params
+  exciseBase: ExciseBase
+  depreciationRate: number // % (e.g. 40 means 40%)
+
+  // Fees
   apFee: number
   customsFee: number
   portFee: number
   inspectionFee: number
+  puspakomFee: number
+  jpjFee: number
+  runnerFee: number
+  transportMY: number
+  reconCost: number
   dealerFee: number
 }
 
@@ -104,21 +139,37 @@ const { calculate } = useCalculator()
 ========================= */
 
 const form = reactive<ImportCostInput>({
-  fob: 52000,
-  fobCurrency: 'MYR',
+  engineCC: 2387,
+  vehicleYear: 2022,
+  vehicleMonth: 6,
 
-  inlandJP: 800,
-  shipping: 2200,
-  insurance: 500,
+  customsFxUSD: 4.70,
+  customsFxJPY: 0.031,
 
-  importRate: 35,
-  exciseRate: 85,
+  fob: 2_800_000,
+  fobCurrency: 'JPY',
 
-  apFee: 10000,
+  inlandJP: 80_000,   // JPY
+  shipping: 900,      // USD
+  insurance: 80,      // USD
+
+  importRate: 30,
+  exciseRate: 90,
+  sstRate: 10,
+
+  exciseBase: 'DEPRECIATED',
+  depreciationRate: 40,
+
+  apFee: 20000,
   customsFee: 2500,
   portFee: 1500,
   inspectionFee: 700,
-  dealerFee: 5000,
+  puspakomFee: 400,
+  jpjFee: 1500,
+  runnerFee: 800,
+  transportMY: 600,
+  reconCost: 3000,
+  dealerFee: 0, // you self-use, set 0. if dealer quote, put their fee/margin here
 })
 
 /* =========================
@@ -130,17 +181,38 @@ const fields: {
   key: Exclude<keyof ImportCostInput, 'fob' | 'fobCurrency'>
   label: string
   currency: FieldCurrency
+  items?: string[]
 }[] = [
+    { key: 'engineCC', label: 'Engine CC', currency: 'MYR' }, // just numeric
+    { key: 'vehicleYear', label: 'Vehicle Year', currency: 'MYR' },
+    { key: 'vehicleMonth', label: 'Vehicle Month (1-12)', currency: 'MYR' },
+
+    { key: 'customsFxUSD', label: 'Customs FX: 1 USD → MYR', currency: 'MYR' },
+    { key: 'customsFxJPY', label: 'Customs FX: 1 JPY → MYR', currency: 'MYR' },
+
     { key: 'inlandJP', label: 'Japan Inland Transport', currency: 'JPY' },
     { key: 'shipping', label: 'Shipping Cost (RORO)', currency: 'USD' },
     { key: 'insurance', label: 'Marine Insurance', currency: 'USD' },
+
     { key: 'importRate', label: 'Import Duty Rate', currency: '%' },
     { key: 'exciseRate', label: 'Excise Duty Rate', currency: '%' },
-    { key: 'apFee', label: 'AP Fee', currency: 'MYR' },
+    { key: 'sstRate', label: 'SST Rate', currency: '%' },
+
+    // Recon key params
+    { key: 'depreciationRate', label: 'Depreciation Rate', currency: '%' },
+    { key: 'exciseBase', label: 'Excise Base', currency: 'TEXT', items: ['DEPRECIATED', 'CIF'] },
+
+    // Fees
+    { key: 'apFee', label: 'Open AP Fee', currency: 'MYR' },
     { key: 'customsFee', label: 'Customs Clearance Fee', currency: 'MYR' },
     { key: 'portFee', label: 'Port Handling Fee', currency: 'MYR' },
-    { key: 'inspectionFee', label: 'PUSPAKOM Inspection Fee', currency: 'MYR' },
-    { key: 'dealerFee', label: 'Dealer / Runner Fee', currency: 'MYR' },
+    { key: 'inspectionFee', label: 'Inspection Fee', currency: 'MYR' },
+    { key: 'puspakomFee', label: 'PUSPAKOM Fee', currency: 'MYR' },
+    { key: 'jpjFee', label: 'JPJ Registration Fee', currency: 'MYR' },
+    { key: 'runnerFee', label: 'Runner Fee', currency: 'MYR' },
+    { key: 'transportMY', label: 'MY Transport (Port → Dealer/Home)', currency: 'MYR' },
+    { key: 'reconCost', label: 'Recon / Service Cost', currency: 'MYR' },
+    { key: 'dealerFee', label: 'Dealer / Margin / Handling', currency: 'MYR' },
   ]
 
 /* =========================
@@ -155,24 +227,57 @@ const exchangeRates: Record<FXCurrency, number> = {
 /* =========================
    Normalize → MYR
 ========================= */
+type FobCurrency = FXCurrency | 'MYR'
 
-const formMYR = computed<ImportCostInput>(() => {
-  const converted = { ...form }
+const fx = {
+  USD: form.customsFxUSD ?? exchangeRates.USD,
+  JPY: form.customsFxJPY ?? exchangeRates.JPY,
+}
 
-  // FOB (dynamic currency)
-  if (form.fobCurrency === 'USD' || form.fobCurrency === 'JPY') {
-    converted.fob = form.fob * exchangeRates[form.fobCurrency]
+const toMYR = (amount: number, currency: FobCurrency) => {
+  if (currency === 'MYR') return amount
+  return amount * fx[currency]
+}
+
+const formMYR = computed(() => {
+  // Convert FOB according to its selected currency
+  const fobMYR = toMYR(form.fob, form.fobCurrency)
+
+  // Convert known FX fields
+  const inlandMYR = form.inlandJP * fx.JPY
+  const shippingMYR = form.shipping * fx.USD
+  const insuranceMYR = form.insurance * fx.USD
+
+  return {
+    // costs in MYR
+    fob: fobMYR,
+    inlandJP: inlandMYR,
+    shipping: shippingMYR,
+    insurance: insuranceMYR,
+
+    // rates (%)
+    importRate: form.importRate,
+    exciseRate: form.exciseRate,
+    sstRate: form.sstRate,
+
+    // recon params
+    exciseBase: form.exciseBase,
+    depreciationRate: form.depreciationRate,
+
+    // fees (MYR)
+    apFee: form.apFee,
+    customsFee: form.customsFee,
+    portFee: form.portFee,
+    inspectionFee: form.inspectionFee,
+    dealerFee: form.dealerFee,
+
+    // optional extras (MYR)
+    puspakomFee: form.puspakomFee,
+    jpjFee: form.jpjFee,
+    runnerFee: form.runnerFee,
+    transportMY: form.transportMY,
+    reconCost: form.reconCost,
   }
-
-  // Other FX fields
-  fields.forEach(field => {
-    if (field.currency === 'USD' || field.currency === 'JPY') {
-      converted[field.key] =
-        form[field.key] * exchangeRates[field.currency]
-    }
-  })
-
-  return converted
 })
 
 /* =========================
