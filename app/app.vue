@@ -27,13 +27,7 @@ useSeoMeta({
 
 <template>
   <UApp>
-    <UHeader>
-      <template #left>
-        <NuxtLink to="/">
-          <UHeader title="CIC" />
-        </NuxtLink>
-      </template>
-    </UHeader>
+    <UHeader title="CIC"></UHeader>
 
     <UMain>
       <NuxtPage />

@@ -5,8 +5,8 @@
         <!-- FOB (SPECIAL CASE: Dynamic Currency) -->
         <UFormField label="FOB Vehicle Price">
           <div class="flex gap-2 items-center">
-            <UInput v-model.number="form.fob" />
-            <USelect v-model="form.fobCurrency" :items="['MYR', 'USD', 'JPY']" />
+            <UInput v-model.number="form.fob" size="xl" />
+            <USelect v-model="form.fobCurrency" :items="['MYR', 'USD', 'JPY']" size="xl" />
           </div>
 
           <span v-if="form.fobCurrency === 'USD' || form.fobCurrency === 'JPY'" class="text-sm text-gray-500">
@@ -16,21 +16,24 @@
         </UFormField>
 
         <!-- Other Fields -->
-        <div v-for="field in fields" :key="field.key" class="mt-3">
-          <UFormField :label="field.label">
-            <template v-if="field.key === 'exciseBase'">
-              <USelect v-model="form.exciseBase" :items="field.items || ['DEPRECIATED', 'CIF']" />
-            </template>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-4">
+          <div v-for="field in fields" :key="field.key" class="mt-3">
+            <UFormField :label="field.label">
+              <template v-if="field.key === 'exciseBase'">
+                <USelect size="xl" v-model="form.exciseBase" :items="field.items || ['DEPRECIATED', 'CIF']" />
+              </template>
 
-            <template v-else>
-              <UInput v-model.number="form[field.key]" :placeholder="field.currency" />
-            </template>
-          </UFormField>
+              <template v-else>
+                <UInputNumber :increment="false" :decrement="false" size="xl" v-model="form[field.key]"
+                  :step="getStep(field)" :format-options="getFormatOptions(field)" :placeholder="field.currency" />
+              </template>
+            </UFormField>
 
-          <span v-if="field.currency === 'USD' || field.currency === 'JPY'" class="text-sm text-gray-500">
-            1 {{ field.currency }} ≈ RM
-            {{ field.currency === 'USD' ? form.customsFxUSD : form.customsFxJPY }}
-          </span>
+            <span v-if="field.currency === 'USD' || field.currency === 'JPY'" class="text-sm text-gray-500">
+              1 {{ field.currency }} ≈ RM
+              {{ field.currency === 'USD' ? form.customsFxUSD : form.customsFxJPY }}
+            </span>
+          </div>
         </div>
       </UCard>
 
@@ -82,6 +85,8 @@
 /* =========================
    Types
 ========================= */
+type FormKey = keyof typeof form
+type NumberFieldKey = Exclude<FormKey, 'exciseBase' | 'fobCurrency'> // add any non-number keys here
 
 type FXCurrency = 'USD' | 'JPY'
 type FieldCurrency = FXCurrency | 'MYR' | '%' | 'TEXT'
@@ -177,12 +182,10 @@ const form = reactive<ImportCostInput>({
    (FOB EXCLUDED ON PURPOSE)
 ========================= */
 
-const fields: {
-  key: Exclude<keyof ImportCostInput, 'fob' | 'fobCurrency'>
-  label: string
-  currency: FieldCurrency
-  items?: string[]
-}[] = [
+const fields: Array<
+  | { key: 'exciseBase'; label: string; currency: 'TEXT'; items: string[] }
+  | { key: NumberFieldKey; label: string; currency: Exclude<FieldCurrency, 'TEXT'> }
+> = [
     { key: 'engineCC', label: 'Engine CC', currency: 'MYR' }, // just numeric
     { key: 'vehicleYear', label: 'Vehicle Year', currency: 'MYR' },
     { key: 'vehicleMonth', label: 'Vehicle Month (1-12)', currency: 'MYR' },
@@ -292,4 +295,41 @@ const formatMYR = (value: number) => {
     maximumFractionDigits: 2,
   });
 };
+
+type NumberFormatOptions = Intl.NumberFormatOptions
+
+const getFormatOptions = (field: { key: string; currency: FieldCurrency }): NumberFormatOptions | undefined => {
+  if (field.currency === 'TEXT') return undefined
+
+  // FX rates need more precision
+  if (field.key === 'customsFxUSD') {
+    return { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 4 }
+  }
+  if (field.key === 'customsFxJPY') {
+    return { style: 'decimal', minimumFractionDigits: 3, maximumFractionDigits: 6 }
+  }
+
+  // Percent fields
+  if (field.currency === '%') {
+    return { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 2 }
+  }
+
+  // Money fields
+  return { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 2 }
+}
+
+const getStep = (field: { key: string; currency: FieldCurrency }) => {
+  if (field.currency === 'TEXT') return undefined
+
+  // FX rates
+  if (field.key === 'customsFxUSD') return 0.0001
+  if (field.key === 'customsFxJPY') return 0.000001
+
+  // Percent
+  if (field.currency === '%') return 0.01
+
+  // Money
+  return 1
+}
+
 </script>
