@@ -11,7 +11,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      
+
       link: [
         { key: 'favicon', rel: 'icon', type: 'image/png', href: '/icons/icon1.png' },
         { key: 'shortcut', rel: 'shortcut icon', type: 'image/png', href: '/icons/icon1.png' }
